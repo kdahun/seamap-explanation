@@ -363,31 +363,34 @@ public class MainActivity2 extends AppCompatActivity implements OnMapReadyCallba
     }
 // 데이터 POST 메서드
     private void sendData() {
+        // 서버 URL 설정
         String url = "http://202.31.147.129:25003/get.php";
 
         //사용자 디바이스 고유ID 가져오는 코드
         String deviceId = Settings.Secure.getString(getContentResolver(), Settings.Secure.ANDROID_ID);
 
+        // Volley 큐 초기화
         if (queue == null) {
             queue = Volley.newRequestQueue(this);
         }
 
+        // 서버에 POST 요청을 보낼 StringRequest 생성
         StringRequest stringRequest = new StringRequest(Request.Method.POST, url, new Response.Listener<String>() {
             @Override
             public void onResponse(String response) {
-                // 서버에서 전송된 결과를 처리할 코드를 합니다.
-                //Toast.makeText(getApplicationContext(), "데이터 전송 완료", Toast.LENGTH_SHORT).show();
+                // 서버에서 전송된 결과를 처리할 코드
+                Toast.makeText(getApplicationContext(), "데이터 전송 완료(sendData)", Toast.LENGTH_SHORT).show();
             }
         }, new Response.ErrorListener() {
             @Override
             public void onErrorResponse(VolleyError error) {
-                // 에러 발생 시 처리할 코드를 이곳에 작성하세요.
-                //Toast.makeText(getApplicationContext(), "오류발생", Toast.LENGTH_SHORT).show();
+                // 에러 발생 시 처리할 코드
+                Toast.makeText(getApplicationContext(), "sendData 오류발생", Toast.LENGTH_SHORT).show();
             }
         }) {
             @Override
             protected Map<String, String> getParams() throws AuthFailureError {
-
+                // MainActivity에서 전달 받은 목적지 좌표 정보 가져오기
                 Intent intent = getIntent();
                 //Toast.makeText(getApplicationContext(),intent.getStringExtra("destination_lat"),Toast.LENGTH_SHORT).show();
                 String destination_lat = intent.getStringExtra("destination_lat");
@@ -405,6 +408,96 @@ public class MainActivity2 extends AppCompatActivity implements OnMapReadyCallba
         };
 
         queue.add(stringRequest);
+    }
+
+    // 현재 위치 정보 제공 클라이언트
+    private FusedLocationProviderClient fusedLocationProviderClient;
+
+    // 현재 위치 정보를 저장할 변수
+    private LatLng currentLocation;
+
+
+    // 구글맵 셋팅?
+    // onMapReady 메서드는 Google Maps가 준비가 되었을 때 호출되며, 이를 통해 개발자가 지도를 커스터마이징하고 지도 작업을 수행할 수 있도록 해준다.
+    @Override
+    public void onMapReady(@NonNull GoogleMap googleMap) {
+        gMap = googleMap;
+        gMap.setMapType(GoogleMap.MAP_TYPE_NORMAL); // Map type
+
+        LatLng korea = new LatLng(37, 128); // 지도 위치 설정
+        gMap.moveCamera(CameraUpdateFactory.newLatLngZoom(korea, 5)); // 카메라 위치 변경 및 줌 어느정도
+
+        fusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(this);
+
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            return;
+        }
+    }
+
+    // LocationRequest : 위치 요청을 정의하는 클래스 위치 요청의 간격, 우선순위 등을 설정할 수 있다.
+    private LocationRequest locationRequest;
+    private LocationCallback locationCallback;
+
+    // 현재 위치 업데이트 요청 설정
+    private void setupLoctionUpdate() {
+        locationRequest = LocationRequest.create();
+        locationRequest.setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
+        locationRequest.setInterval(10000); // 위치 업데이트 간격(10초)
+
+        locationCallback = new LocationCallback() {
+            @Override
+            public void onLocationResult(@NonNull LocationResult locationResult) {
+                if (locationResult != null) {
+                    for (android.location.Location location : locationResult.getLocations()) {
+
+                        // 현재 위치의 경위도 값을 변수에 저장
+                        Current_lat = location.getLatitude();
+                        Current_log = location.getLongitude();
+                        sendData();
+
+                        //Toast.makeText(getApplicationContext(),Current_lat+":"+Current_log,Toast.LENGTH_SHORT).show();
+                        // 새로운 위치를 받아서 처리
+                        updateCurrentLocation(location);
+                    }
+                }
+            }
+        };
+    }
+
+private Marker currentLoactionMarker; // 현재 위치를 나타내는 마커
+
+    private Circle currentCircle;
+
+    private void updateCurrentLocation(android.location.Location location) {
+        // 새로운 위치 업데이트 시, 지도에 마커 표시
+        if (gMap != null) {
+            LatLng newLatLng = new LatLng(location.getLatitude(), location.getLongitude());
+            if(currentLoactionMarker == null){
+                // 초기에 마커가 없다면 추가
+                currentLoactionMarker = gMap.addMarker(new MarkerOptions().position(newLatLng).zIndex(2.0f));
+            }else{
+                // 이미 마커가 있다면 위치만 업데이트
+                currentLoactionMarker.setPosition(newLatLng);
+            }
+
+            // 반경 원을 그리기 위한 설정
+            CircleOptions circleOptions = new CircleOptions().
+                    center(newLatLng).
+                    radius(50000).
+                    strokeColor(Color.BLUE).
+                    fillColor(Color.TRANSPARENT).zIndex(1.0f);
+
+            // 이전에 추가된 반경원이 있다면 제거
+            if(currentCircle != null){
+                currentCircle.remove();
+            }
+
+            // 새로운 반경원을 지도에 추가
+            currentCircle = gMap.addCircle(circleOptions);
+
+            // 위치 업데이트 발생 시 Toast 메시지 표시
+            //Toast.makeText(this,"현재 위치가 업데이트 되었습니다",Toast.LENGTH_SHORT).show();
+        }
     }
 }
 ```
@@ -447,4 +540,27 @@ queue.add(stringRequest);
     - 이는 명시적으로 나타나지는 않지만, queue가 null인 경우에만 초기화하는 것은 이러한 접근 방식을 따르는 것이다.
       
  => 요약하자면 queue는 네트워크 작업을 효율적으로 처리하는 데 필수적이다. 네트워크 관리, 재시도, 스레드 관리 및 요청 우선순위를 추상화한다. RequestQueue를 사용하면 이러한 책임을 Volley 라이브러리에 맡길 수 있어, 애플리케이션의 비즈니스 로직과 데이터 처리에 집중할 수 있다.
+
+### sendData() 메서드 추가 설명
+- Volley : 구글에서 제공하는 HTTP라이브러리로, 간단한 API로 네트워크 요청을 관리한다. RequestQueue를 사용하여 요청을 관리하고, StringRequest나 JosnObjectRequest 등 다양한 요청 타입을 지원한다.
+- Android ID : 안드로이드 디바이스에 고유한 ID로, 각 디바이스에 고유한 값이다. 이는 앱 디바이스를 식별하는 데 유용하다.
+- Intent : 안드로이드의 Intent는 다른 액티비티에서 전달된 데이터를 받아오는 데 사용된다.
+
+
+### onMapReady() 설명
+- onMapReady 메서드는 Google Maps가 준비되었을 때 호출된다. 이 시점에서 개발자는 지도를 커스터마이징하거나 작업을 수행할 수 있다.
+- @override : onMapReady 메서드가 GoogleMap.OnMapReadycallback 인터페이스의 메서드를 재정의하고 있다는 것을 나타낸다.
+- @NonNull : 이 어노테이션은 googleMap 매개변수가 null이 될 수 없음을 나타낸다.
+- fusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(this); : 위치 서비스를 관리한다. 이 클라이언트는 GPS, Wi-Fi, 셀룰러 데이터 등 여러 위치 소스를 통합하여 보다 정확한 위치 정보를 제공한다.
+```
+- if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+    return;
+}
+```
+- 권한 확인 : ACCESS_FINE_LOCATION과 ACCESS_COARSE_LOCATION 두 가지 위치 접근 권한이 있는지 확인한다.
+- ActivityCompat.checkSelfPermission : 현재 권한이 있는지 확인하는 메서드
+  * Manifest.permission.ACCESS_FINE_LOCATION : 고정밀 위치 접근 권한
+  * Manifest.permission.ACCESS_COARSE_LOCATION : 저정밀 위치 접근 권한
+
+
 
