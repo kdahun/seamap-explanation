@@ -329,6 +329,83 @@ public class MainActivity2 extends AppCompatActivity implements OnMapReadyCallba
             }
         }
     }
+
+    // 권한 요청을 식별하기 위한 고유한 코드. 요청과 응답을 매칭하는 데 사용
+    // 일반적으로 임의의 정수로 정의되며 여기서는 1로 설정되어 있다
+    private static final int LOCATION_PERMISSION_REQUEST_CODE = 1;
+
+    // 비동기적으로 지도 초기화
+    private void onDataLodaed() {
+        mapFrag = (MapFragment) getFragmentManager().findFragmentById(R.id.map);
+        mapFrag.getMapAsync(this);
+    }
+
+    private void checkLocationPermission() { // 위치 권한을 확인하고 필요한 경우 요청하는 역할
+        // 위치 권한 확인
+        // ContextCompat.checkSelfPermission은 주어진 권한이 앱에 부여되었는지 확인
+        // Manifest.permission.ACCESS_FINE_LOCATION은 정밀한 위치 정보를 액세스할 수 있는 권한을 의미한다.
+        // PackageManager.PERMISSION_GRANTED와 비교하여 권한이 부여되지 않았을 경우 확인
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) { // 권한이 없을 경우
+            
+            // 사용자가 이전에 권한 요청을 거부했는지 확인
+            if (ActivityCompat.shouldShowRequestPermissionRationale(this, Manifest.permission.ACCESS_FINE_LOCATION)) {
+                // 필요한 권한 설명을 위한 다이얼 로그 표시
+            } else {
+                // 사용자가 이전에 요청을 거부하지 않았거나 처음 요청하는 경우
+                // 권한 요청
+                ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, LOCATION_PERMISSION_REQUEST_CODE);
+            }
+        } else {
+            // 권한이 이미 있는 경우
+            // 위치 정보 가져오기 진행
+            onDataLodaed();
+        }
+    }
+// 데이터 POST 메서드
+    private void sendData() {
+        String url = "http://202.31.147.129:25003/get.php";
+
+        //사용자 디바이스 고유ID 가져오는 코드
+        String deviceId = Settings.Secure.getString(getContentResolver(), Settings.Secure.ANDROID_ID);
+
+        if (queue == null) {
+            queue = Volley.newRequestQueue(this);
+        }
+
+        StringRequest stringRequest = new StringRequest(Request.Method.POST, url, new Response.Listener<String>() {
+            @Override
+            public void onResponse(String response) {
+                // 서버에서 전송된 결과를 처리할 코드를 합니다.
+                //Toast.makeText(getApplicationContext(), "데이터 전송 완료", Toast.LENGTH_SHORT).show();
+            }
+        }, new Response.ErrorListener() {
+            @Override
+            public void onErrorResponse(VolleyError error) {
+                // 에러 발생 시 처리할 코드를 이곳에 작성하세요.
+                //Toast.makeText(getApplicationContext(), "오류발생", Toast.LENGTH_SHORT).show();
+            }
+        }) {
+            @Override
+            protected Map<String, String> getParams() throws AuthFailureError {
+
+                Intent intent = getIntent();
+                //Toast.makeText(getApplicationContext(),intent.getStringExtra("destination_lat"),Toast.LENGTH_SHORT).show();
+                String destination_lat = intent.getStringExtra("destination_lat");
+                String destination_log = intent.getStringExtra("destination_log");
+
+
+                Map<String, String> params = new HashMap<>();
+                params.put("dest_latitude", String.valueOf(destination_lat)); // 목적지 경도
+                params.put("dest_longitude", String.valueOf(destination_log)); // 목적지 위도
+                params.put("cur_latitude", String.valueOf(Current_lat)); // 현재 경도
+                params.put("cur_longitude", String.valueOf(Current_log)); // 현재 위도
+                params.put("device_id", deviceId);
+                return params;
+            }
+        };
+
+        queue.add(stringRequest);
+    }
 }
 ```
 queue : Volley 라이브러리에서 제공하는 RequestQueue 클래스의 인스턴스이다.
